@@ -1,3 +1,47 @@
+/*!
+This crate provides `GettersByType` and `GettersMutByType` derive macros for structs, which implements a getter method for each type they contain. The getter methods return an array containing references to all the fields of the same type. The `GettersMutByType` derive also adds a mut version for those methods.
+
+Example using `GettersByType` :
+
+```rust
+#[derive(GettersByType)]
+struct Test {
+    first: i32,
+    second: i32,
+    third: i32,
+}
+
+let test = Test { first: 6, second: 12, third: 24 };
+
+// Let's sum all the i32 field with a fold expression:
+assert_eq!(test.get_fields_i32().iter().fold(0, |acc, x| **x + acc), 42);
+```
+
+Example using `GettersMutByType` :
+
+
+```rust
+#[derive(GettersMutByType)]
+struct Test {
+    first: Updater,
+    second: Updater,
+    ...
+    onehundredth: Updater,
+}
+
+impl Updater {
+    fn update(&mut self) {...}
+}
+
+let mut test = Test::new();
+
+// Let's update all the Updater fields
+for updater in test.get_mut_fields_updater().iter_mut() {
+    updater.update();
+}
+```
+!*/
+
 extern crate proc_macro;
 extern crate proc_macro2;
 extern crate quote;
