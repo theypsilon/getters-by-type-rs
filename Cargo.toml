@@ -9,7 +9,7 @@ readme = "README.md"
 documentation = "https://docs.rs/getters-by-type"
 
 repository = "https://github.com/theypsilon/getters-by-type-rs"
-keywords = ["getter", "struct", "field", "type", "derive", "getset", "get", "macro", "array"]
+keywords = ["getter", "struct", "derive", "field", "get"]
 categories = ["rust-patterns"]
 
 [dependencies]
