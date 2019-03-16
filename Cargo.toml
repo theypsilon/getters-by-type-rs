@@ -1,0 +1,21 @@
+[package]
+name = "getters-by-type"
+version = "0.1.0"
+authors = ["José Manuel Barroso Galindo <theypsilon@gmail.com>"]
+license = "MIT"
+
+description = "Derive macro for adding a getter method for each type in the struct."
+readme = "README.md"
+documentation = "https://docs.rs/getters-by-type"
+
+repository = "https://github.com/theypsilon/getters-by-type-rs"
+keywords = ["getter", "struct", "field", "type", "derive", "getset", "get", "macro", "array"]
+categories = ["rust-patterns"]
+
+[dependencies]
+quote = "0.6"
+proc-macro2 = "0.4.27"
+syn = "0.15"
+
+[lib]
+proc-macro = true
