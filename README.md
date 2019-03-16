@@ -17,7 +17,7 @@ struct Test {
 
 let test = Test { first: 6, second: 12, third: 24 };
 
-// Let's sum all the i32 field with a fold expression:
+// Let's sum all the i32 fields with a fold expression:
 assert_eq!(test.get_fields_i32().iter().fold(0, |acc, x| **x + acc), 42);
 ```
 
