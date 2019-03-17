@@ -59,16 +59,16 @@ use std::collections::HashMap;
 use syn::DeriveInput;
 
 #[proc_macro_derive(GettersByType)]
-pub fn fields_getters_immutable_by_type(input: TokenStream) -> TokenStream {
-    fields_getters_by_type_impl(input, false)
+pub fn getters_by_type(input: TokenStream) -> TokenStream {
+    getters_by_type_impl(input, false)
 }
 
 #[proc_macro_derive(GettersMutByType)]
-pub fn fields_getters_mutable_by_type(input: TokenStream) -> TokenStream {
-    fields_getters_by_type_impl(input, true)
+pub fn getters_mut_by_type(input: TokenStream) -> TokenStream {
+    getters_by_type_impl(input, true)
 }
 
-fn fields_getters_by_type_impl(input: TokenStream, with_mutability: bool) -> TokenStream {
+fn getters_by_type_impl(input: TokenStream, with_mutability: bool) -> TokenStream {
     let ast: DeriveInput = syn::parse(input).unwrap();
     let (vis, ty, generics) = (&ast.vis, &ast.ident, &ast.generics);
     let fields_by_type = match ast.data {
