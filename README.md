@@ -49,7 +49,7 @@ Check more examples on the test file: [tests/getters_by_type.rs](tests/getters_b
 
 ## Usage
 
-With Cargo, you can this line to your Cargo.toml:
+With Cargo, you can add this line to your Cargo.toml:
 
 ```toml
 [dependencies]
