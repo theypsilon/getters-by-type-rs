@@ -60,69 +60,103 @@ use syn::DeriveInput;
 
 #[proc_macro_derive(GettersByType)]
 pub fn getters_by_type(input: TokenStream) -> TokenStream {
-    getters_by_type_impl(input, false)
+    ImplContext::new(input, "GettersByType", false).transform_ast()
 }
 
 #[proc_macro_derive(GettersMutByType)]
 pub fn getters_mut_by_type(input: TokenStream) -> TokenStream {
-    getters_by_type_impl(input, true)
+    ImplContext::new(input, "GettersByMutType", true).transform_ast()
 }
 
-fn getters_by_type_impl(input: TokenStream, with_mutability: bool) -> TokenStream {
-    let ast: DeriveInput = syn::parse(input).unwrap();
-    let (vis, ty, generics) = (&ast.vis, &ast.ident, &ast.generics);
-    let fields_by_type = match ast.data {
-        syn::Data::Struct(e) => read_fields(e.fields, with_mutability),
-        _ => panic!("{} can only be derived for structs.", if with_mutability { "GettersMutByType" } else { "GettersByType" }),
-    };
-    let mut methods = Vec::<TokenTree>::new();
-    for (type_name, fields_sharing_type) in fields_by_type.into_iter() {
-        let ctx = MethodContext {
-            method_return_type: fields_sharing_type.type_ident,
-            type_name: fix_type_name(&type_name),
-            vis,
+struct ImplContext {
+    ast: DeriveInput,
+    derive_name: &'static str,
+    with_mutability: bool,
+}
+
+impl ImplContext {
+    fn new(input: TokenStream, derive_name: &'static str, with_mutability: bool) -> ImplContext {
+        ImplContext {
+            ast: syn::parse(input).expect("Could not parse AST."),
+            derive_name,
+            with_mutability,
+        }
+    }
+
+    fn transform_ast(&self) -> TokenStream {
+        let fields_by_type = match self.ast.data {
+            syn::Data::Struct(ref class) => self.read_fields(&class.fields),
+            _ => panic!("{} can only be derived for structs.", self.derive_name),
         };
-        methods.extend(make_method_tokens("get_fields", &ctx, false, fields_sharing_type.immutable_fields));
-        if with_mutability {
-            methods.extend(make_method_tokens("get_mut_fields", &ctx, true, fields_sharing_type.mutable_fields));
+        let mut methods = Vec::<TokenTree>::new();
+        for (type_name, fields_sharing_type) in fields_by_type.into_iter() {
+            let ctx = MethodTypes {
+                method_return_type: fields_sharing_type.type_ident,
+                type_name: fix_type_name(&type_name),
+            };
+            methods.extend(self.make_method_tokens("get_fields", &ctx, false, fields_sharing_type.immutable_fields));
+            if self.with_mutability {
+                methods.extend(self.make_method_tokens("get_mut_fields", &ctx, true, fields_sharing_type.mutable_fields));
+            }
+        }
+        let (ty, generics) = (&self.ast.ident, &self.ast.generics);
+        let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+        let tokens = quote! {
+            impl #impl_generics #ty #ty_generics
+                #where_clause
+            {
+                #(#methods)
+                *
+            }
+        };
+        tokens.into()
+    }
+
+    fn read_fields(&self, fields: &syn::Fields) -> HashMap<String, FieldsSharingType> {
+        let mut fields_by_type = HashMap::<String, FieldsSharingType>::new();
+        for field in fields.iter() {
+            if let Some(ref ident) = field.ident {
+                match get_data_from_field(&field) {
+                    Ok(FieldInfo { is_mutable, type_ident, type_name }) => {
+                        let fields_by_type = fields_by_type.entry(type_name).or_insert_with(|| FieldsSharingType::new(type_ident));
+                        if is_mutable && self.with_mutability {
+                            fields_by_type.mutable_fields.push(ident.to_string());
+                        }
+                        fields_by_type.immutable_fields.push(ident.to_string());
+                    }
+                    Err(err) => {
+                        eprintln!("[WARNING::{}] {} for field: {}", self.derive_name, err, ident);
+                    }
+                }
+            }
+        }
+        fields_by_type
+    }
+
+    fn make_method_tokens(&self, method_prefix: &str, ctx: &MethodTypes, mutability: bool, mut field_names: Vec<String>) -> proc_macro2::TokenStream {
+        let count = field_names.len();
+        let field_idents = field_names.iter_mut().map(|i| syn::Ident::new(&i, proc_macro2::Span::call_site()));
+        let method_name = syn::Ident::new(&format!("{}_{}", method_prefix, ctx.type_name), proc_macro2::Span::call_site());
+        let (vis, method_return_type) = (&self.ast.vis, &ctx.method_return_type);
+        if mutability {
+            quote! {
+                #vis fn #method_name(&mut self) -> [&mut #method_return_type; #count] {
+                    [#(&mut self.#field_idents),*]
+                }
+            }
+        } else {
+            quote! {
+                #vis fn #method_name(&self) -> [&#method_return_type; #count] {
+                    [#(&self.#field_idents),*]
+                }
+            }
         }
     }
-    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-    let tokens = quote! {
-        impl #impl_generics #ty #ty_generics
-            #where_clause
-        {
-            #(#methods)
-            *
-        }
-    };
-    tokens.into()
 }
 
-struct MethodContext<'a> {
+struct MethodTypes {
     method_return_type: syn::Type,
-    vis: &'a syn::Visibility,
     type_name: String,
-}
-
-fn make_method_tokens(method_prefix: &str, ctx: &MethodContext, mutability: bool, mut field_names: Vec<String>) -> proc_macro2::TokenStream {
-    let count = field_names.len();
-    let field_idents = field_names.iter_mut().map(|i| syn::Ident::new(&i, proc_macro2::Span::call_site()));
-    let method_name = syn::Ident::new(&format!("{}_{}", method_prefix, ctx.type_name), proc_macro2::Span::call_site());
-    let (vis, method_return_type) = (&ctx.vis, &ctx.method_return_type);
-    if mutability {
-        quote! {
-            #vis fn #method_name(&mut self) -> [&mut #method_return_type; #count] {
-                [#(&mut self.#field_idents),*]
-            }
-        }
-    } else {
-        quote! {
-            #vis fn #method_name(&self) -> [&#method_return_type; #count] {
-                [#(&self.#field_idents),*]
-            }
-        }
-    }
 }
 
 struct FieldsSharingType {
@@ -139,27 +173,6 @@ impl FieldsSharingType {
             type_ident,
         }
     }
-}
-
-fn read_fields(fields: syn::Fields, with_mutability: bool) -> HashMap<String, FieldsSharingType> {
-    let mut fields_by_type = HashMap::<String, FieldsSharingType>::new();
-    for field in fields.iter() {
-        if let Some(ref ident) = field.ident {
-            match get_data_from_field(&field) {
-                Ok(FieldInfo { is_mutable, type_ident, type_name }) => {
-                    let fields_by_type = fields_by_type.entry(type_name).or_insert_with(|| FieldsSharingType::new(type_ident));
-                    if is_mutable && with_mutability {
-                        fields_by_type.mutable_fields.push(ident.to_string());
-                    }
-                    fields_by_type.immutable_fields.push(ident.to_string());
-                }
-                Err(err) => {
-                    eprintln!("[WARNING::GetterByType] {} for field: {}", err, ident);
-                }
-            }
-        }
-    }
-    fields_by_type
 }
 
 struct FieldInfo {
