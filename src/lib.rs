@@ -46,17 +46,12 @@ updater.update();
 }
 ```
 !*/
-
 extern crate proc_macro;
-extern crate proc_macro2;
-extern crate quote;
-extern crate syn;
 
 use proc_macro::TokenStream;
-use proc_macro2::*;
+use proc_macro2::{TokenTree, Span};
 use quote::quote;
 use std::collections::HashMap;
-use syn::DeriveInput;
 
 #[proc_macro_derive(GettersByType)]
 pub fn getters_by_type(input: TokenStream) -> TokenStream {
@@ -69,7 +64,7 @@ pub fn getters_mut_by_type(input: TokenStream) -> TokenStream {
 }
 
 struct ImplContext {
-    ast: DeriveInput,
+    ast: syn::DeriveInput,
     derive_name: &'static str,
     with_mutability: bool,
 }
@@ -135,8 +130,8 @@ impl ImplContext {
 
     fn make_method_tokens(&self, method_prefix: &str, ctx: &MethodTypes, mutability: bool, mut field_names: Vec<String>) -> proc_macro2::TokenStream {
         let count = field_names.len();
-        let field_idents = field_names.iter_mut().map(|i| syn::Ident::new(&i, proc_macro2::Span::call_site()));
-        let method_name = syn::Ident::new(&format!("{}_{}", method_prefix, ctx.type_name), proc_macro2::Span::call_site());
+        let field_idents = field_names.iter_mut().map(|i| syn::Ident::new(&i, Span::call_site()));
+        let method_name = syn::Ident::new(&format!("{}_{}", method_prefix, ctx.type_name), Span::call_site());
         let (vis, method_return_type) = (&self.ast.vis, &ctx.method_return_type);
         if mutability {
             quote! {
