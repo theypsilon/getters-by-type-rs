@@ -4,6 +4,7 @@ This crate provides `GettersByType` and `GettersMutByType` derive macros for str
 Example using `GettersByType` :
 
 ```rust
+use getters_by_type::GettersByType;
 #[derive(GettersByType)]
 struct Test {
     first: i32,
@@ -21,23 +22,27 @@ Example using `GettersMutByType` :
 
 
 ```rust
-#[derive(GettersMutByType)]
+use getters_by_type::GettersMutByType;
+
+#[derive(Default)]
+struct Updater {}
+impl Updater {
+    fn update(&mut self) {/*...*/}
+}
+
+#[derive(GettersMutByType, Default)]
 struct Test {
     first: Updater,
     second: Updater,
-    ...
-    onehundredth: Updater,
+    /*...*/
+onehundredth: Updater,
 }
 
-impl Updater {
-    fn update(&mut self) {...}
-}
-
-let mut test = Test::new();
+let mut test = Test::default();
 
 // Let's update all the Updater fields
 for updater in test.get_mut_fields_updater().iter_mut() {
-    updater.update();
+updater.update();
 }
 ```
 !*/
@@ -63,156 +68,220 @@ pub fn fields_getters_immutable_by_type(input: TokenStream) -> TokenStream {
     fields_getters_by_type_impl(input, true)
 }
 
-struct FieldByTypeValue {
-    immutable_fields: Vec<String>,
-    mutable_fields: Vec<String>,
-    ident: syn::Type,
-}
-
-impl FieldByTypeValue {
-    fn new(ident: syn::Type) -> FieldByTypeValue {
-        FieldByTypeValue {
-            immutable_fields: vec![],
-            mutable_fields: vec![],
-            ident,
-        }
-    }
-}
-
 fn fields_getters_by_type_impl(input: TokenStream, with_mutability: bool) -> TokenStream {
     let ast: DeriveInput = syn::parse(input).unwrap();
     let (vis, ty, generics) = (&ast.vis, &ast.ident, &ast.generics);
-    let mut field_by_type = HashMap::<String, FieldByTypeValue>::new();
-    match ast.data {
-        syn::Data::Struct(e) => {
-            for field in e.fields.iter() {
-                let mut type_name = String::new();
-                let mut is_field_mutable: bool = true;
-                match field.ty {
-                    syn::Type::Path(ref path) => {
-                        add_type_string(&mut type_name, path);
-                        field_by_type
-                            .entry(type_name.clone())
-                            .or_insert_with(|| FieldByTypeValue::new(field.ty.clone()));
-                    }
-                    syn::Type::Reference(ref reference) => {
-                        match *reference.elem {
-                            syn::Type::Path(ref path) => {
-                                add_type_string(&mut type_name, path);
-                                field_by_type.entry(type_name.clone()).or_insert_with(|| {
-                                    FieldByTypeValue::new(syn::Type::Path(path.clone()))
-                                });
-                            }
-                            _ => println!("Reference not covered."),
-                        }
-                        is_field_mutable = reference.mutability.is_some();
-                    }
-                    _ => {
-                        println!("Type not covered.");
-                    }
-                }
-                match field.ident.as_ref() {
-                    Some(ident) => {
-                        if let Some(field_info) = field_by_type.get_mut(&type_name) {
-                            if is_field_mutable && with_mutability {
-                                field_info.mutable_fields.push(ident.to_string());
-                            }
-                            field_info.immutable_fields.push(ident.to_string());
-                        }
-                    }
-                    None => {
-                        println!("Ident is missing.");
-                    }
-                }
-            }
-        }
-        _ => panic!("GettersByType can only be derived for structs."),
+    let fields_by_type = match ast.data {
+        syn::Data::Struct(e) => read_fields(e.fields, with_mutability),
+        _ => panic!("{} can only be derived for structs.", if with_mutability { "GettersMutByType" } else { "GettersByType" }),
     };
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
-    let mut ts = Vec::<TokenTree>::new();
-    for (current_type, field_info) in field_by_type.into_iter() {
-        let method_return_type = field_info.ident.clone();
-        let mut add_method = |method_prefix: &str, mutability: bool, mut type_vec: Vec<String>| {
-            let count = type_vec.len();
-            let subs_vec = type_vec
-                .iter_mut()
-                .map(|i| syn::Ident::new(&i, proc_macro2::Span::call_site()));
-            let method_name = syn::Ident::new(
-                &format!("{}_{}", method_prefix, fix_ident(&current_type)),
-                proc_macro2::Span::call_site(),
-            );
-            let method = if mutability {
-                quote! {
-                    #vis fn #method_name(&mut self) -> [&mut #method_return_type; #count] {
-                        [#(&mut self.#subs_vec),*]
-                    }
-                }
-            } else {
-                quote! {
-                    #vis fn #method_name(&self) -> [&#method_return_type; #count] {
-                        [#(&self.#subs_vec),*]
-                    }
-                }
-            };
-            ts.extend(method);
+    let methods = fields_by_type.into_iter().fold(Vec::<TokenTree>::new(), |mut acc, (type_name, fields_sharing_type)| {
+        let ctx = MethodContext {
+            method_return_type: fields_sharing_type.type_ident,
+            type_name: fix_type_name(&type_name),
+            vis,
         };
-        add_method("get_fields", false, field_info.immutable_fields);
+        acc.extend(make_method_tokens("get_fields", &ctx, false, fields_sharing_type.immutable_fields));
         if with_mutability {
-            add_method("get_mut_fields", true, field_info.mutable_fields);
+            acc.extend(make_method_tokens("get_mut_fields", &ctx, true, fields_sharing_type.mutable_fields));
         }
-    }
+        acc
+    });
 
     let tokens = quote! {
         impl #impl_generics #ty #ty_generics
             #where_clause
         {
-            #(#ts)
+            #(#methods)
             *
         }
     };
     tokens.into()
 }
 
-fn add_type_string(type_name: &mut String, path: &syn::TypePath) {
-    for segment in &path.path.segments {
-        *type_name += &segment.ident.to_string();
-        add_argument_string(type_name, &segment.arguments);
+struct MethodContext<'a> {
+    method_return_type: syn::Type,
+    vis: &'a syn::Visibility,
+    type_name: String,
+}
+
+fn make_method_tokens(method_prefix: &str, ctx: &MethodContext, mutability: bool, mut field_names: Vec<String>) -> proc_macro2::TokenStream {
+    let count = field_names.len();
+    let field_idents = field_names.iter_mut().map(|i| syn::Ident::new(&i, proc_macro2::Span::call_site()));
+    let method_name = syn::Ident::new(&format!("{}_{}", method_prefix, ctx.type_name), proc_macro2::Span::call_site());
+    let (vis, method_return_type) = (&ctx.vis, &ctx.method_return_type);
+    if mutability {
+        quote! {
+            #vis fn #method_name(&mut self) -> [&mut #method_return_type; #count] {
+                [#(&mut self.#field_idents),*]
+            }
+        }
+    } else {
+        quote! {
+            #vis fn #method_name(&self) -> [&#method_return_type; #count] {
+                [#(&self.#field_idents),*]
+            }
+        }
     }
 }
 
-// KEOPS PYRAMID!!
-fn add_argument_string(type_name: &mut String, arguments: &syn::PathArguments) {
-    match arguments {
-        syn::PathArguments::AngleBracketed(ref angle) => {
-            *type_name += "<";
-            for arg in &angle.args {
-                match arg {
-                    syn::GenericArgument::Type(ref ty) => match ty {
-                        syn::Type::Path(ref argpath) => {
-                            for argsegment in &argpath.path.segments {
-                                *type_name += &format!("{}_", argsegment.ident);
-                                add_argument_string(type_name, &argsegment.arguments);
-                            }
-                        }
-                        _ => println!("Type argument not covered."),
-                    },
-                    _ => println!("Generic argument not covered."),
+struct FieldsSharingType {
+    immutable_fields: Vec<String>,
+    mutable_fields: Vec<String>,
+    type_ident: syn::Type,
+}
+
+impl FieldsSharingType {
+    fn new(type_ident: syn::Type) -> FieldsSharingType {
+        FieldsSharingType {
+            immutable_fields: vec![],
+            mutable_fields: vec![],
+            type_ident,
+        }
+    }
+}
+
+fn read_fields(fields: syn::Fields, with_mutability: bool) -> HashMap<String, FieldsSharingType> {
+    let mut fields_by_type = HashMap::<String, FieldsSharingType>::new();
+    for field in fields.iter() {
+        if let Some(ref ident) = field.ident {
+            match get_data_from_field(&field) {
+                Ok(FieldInfo { is_mutable, type_ident, type_name }) => {
+                    let fields_by_type = fields_by_type.entry(type_name).or_insert_with(|| FieldsSharingType::new(type_ident));
+                    if is_mutable && with_mutability {
+                        fields_by_type.mutable_fields.push(ident.to_string());
+                    }
+                    fields_by_type.immutable_fields.push(ident.to_string());
+                }
+                Err(err) => {
+                    eprintln!("[WARNING::GetterByType] {} for field: {}", err, ident);
                 }
             }
-            *type_name += ">";
         }
-        syn::PathArguments::None => {}
-        _ => println!("PathArguments not covered."),
+    }
+    fields_by_type
+}
+
+struct FieldInfo {
+    is_mutable: bool,
+    type_ident: syn::Type,
+    type_name: String,
+}
+
+fn get_data_from_field(field: &syn::Field) -> Result<FieldInfo, &'static str> {
+    let (type_name, type_ident, is_field_mutable) = match field.ty {
+        syn::Type::Path(ref path) => (get_type_string(path), field.ty.clone(), true),
+        syn::Type::Reference(ref reference) => match *reference.elem {
+            syn::Type::Path(ref path) => (get_type_string(path), syn::Type::Path(path.clone()), reference.mutability.is_some()),
+            _ => return Err("Reference not covered"),
+        },
+        _ => return Err("Type not covered"),
+    };
+    Ok(FieldInfo {
+        is_mutable: is_field_mutable,
+        type_ident,
+        type_name: type_name?,
+    })
+}
+
+fn get_type_string(path: &syn::TypePath) -> Result<String, &'static str> {
+    let mut error = None;
+    let operation = path
+        .path
+        .segments
+        .iter()
+        .map(|segment| {
+            segment.ident.to_string()
+                + match get_argument_string(&segment.arguments) {
+                    Ok(ref string) => string,
+                    Err(err) => {
+                        error = Some(err);
+                        ""
+                    }
+                }
+        })
+        .collect::<String>();
+    match error {
+        None => Ok(operation),
+        Some(err) => Err(err),
     }
 }
 
-fn fix_ident(name: &str) -> String {
+fn get_argument_string(arguments: &syn::PathArguments) -> Result<String, &'static str> {
+    let mut type_name = String::new();
+    match arguments {
+        syn::PathArguments::AngleBracketed(ref angle) => {
+            type_name += "<";
+            for arg in &angle.args {
+                type_name += &match arg {
+                    syn::GenericArgument::Type(ref ty) => get_type_path_string(ty),
+                    _ => Ok("".into()), /*
+                                        This _ should math these four, and they shouldn't be cover by this function:
+
+                                        syn::GenericArgument::Lifetime(_) => {},
+                                        syn::GenericArgument::Binding(_) => {},
+                                        syn::GenericArgument::Constraint(_) => {},
+                                        syn::GenericArgument::Const(_) => {},
+                                        */
+                }?;
+            }
+            type_name += ">";
+        }
+        syn::PathArguments::None => {}
+        syn::PathArguments::Parenthesized(ref paren) => {
+            type_name += "(";
+            for arg in &paren.inputs {
+                get_type_path_string(arg)?;
+            }
+            type_name += ")";
+            match paren.output {
+                syn::ReturnType::Default => {}
+                syn::ReturnType::Type(_, ref arg) => {
+                    type_name += "arrow_";
+                    get_type_path_string(&**arg)?;
+                }
+            }
+        }
+    }
+    Ok(type_name)
+}
+
+fn get_type_path_string(type_argument: &syn::Type) -> Result<String, &'static str> {
+    match type_argument {
+        syn::Type::Path(ref argpath) => {
+            let mut error = None;
+            let operation = argpath
+                .path
+                .segments
+                .iter()
+                .map(|argsegment| {
+                    format!("{}_", argsegment.ident)
+                        + match get_argument_string(&argsegment.arguments) {
+                            Ok(ref string) => string,
+                            Err(err) => {
+                                error = Some(err);
+                                ""
+                            }
+                        }
+                })
+                .collect::<String>();
+            match error {
+                None => Ok(operation),
+                Some(err) => Err(err),
+            }
+        }
+        _ => Err("Type argument not covered"),
+    }
+}
+
+fn fix_type_name(name: &str) -> String {
     name.to_string()
         .to_lowercase()
         .chars()
         .map(|c| match c {
-            '<' | '>' => '_',
+            '<' | '>' | '(' | ')' | '-' => '_',
             _ => c,
         })
         .collect()
