@@ -75,21 +75,19 @@ fn getters_by_type_impl(input: TokenStream, with_mutability: bool) -> TokenStrea
         syn::Data::Struct(e) => read_fields(e.fields, with_mutability),
         _ => panic!("{} can only be derived for structs.", if with_mutability { "GettersMutByType" } else { "GettersByType" }),
     };
-    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-
-    let methods = fields_by_type.into_iter().fold(Vec::<TokenTree>::new(), |mut acc, (type_name, fields_sharing_type)| {
+    let mut methods = Vec::<TokenTree>::new();
+    for (type_name, fields_sharing_type) in fields_by_type.into_iter() {
         let ctx = MethodContext {
             method_return_type: fields_sharing_type.type_ident,
             type_name: fix_type_name(&type_name),
             vis,
         };
-        acc.extend(make_method_tokens("get_fields", &ctx, false, fields_sharing_type.immutable_fields));
+        methods.extend(make_method_tokens("get_fields", &ctx, false, fields_sharing_type.immutable_fields));
         if with_mutability {
-            acc.extend(make_method_tokens("get_mut_fields", &ctx, true, fields_sharing_type.mutable_fields));
+            methods.extend(make_method_tokens("get_mut_fields", &ctx, true, fields_sharing_type.mutable_fields));
         }
-        acc
-    });
-
+    }
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let tokens = quote! {
         impl #impl_generics #ty #ty_generics
             #where_clause
@@ -172,9 +170,9 @@ struct FieldInfo {
 
 fn get_data_from_field(field: &syn::Field) -> Result<FieldInfo, &'static str> {
     let (type_name, type_ident, is_field_mutable) = match field.ty {
-        syn::Type::Path(ref path) => (get_type_string(path), field.ty.clone(), true),
+        syn::Type::Path(ref path) => (get_type_string(path, ""), field.ty.clone(), true),
         syn::Type::Reference(ref reference) => match *reference.elem {
-            syn::Type::Path(ref path) => (get_type_string(path), syn::Type::Path(path.clone()), reference.mutability.is_some()),
+            syn::Type::Path(ref path) => (get_type_string(path, ""), syn::Type::Path(path.clone()), reference.mutability.is_some()),
             _ => return Err("Reference not covered"),
         },
         _ => return Err("Type not covered"),
@@ -186,27 +184,14 @@ fn get_data_from_field(field: &syn::Field) -> Result<FieldInfo, &'static str> {
     })
 }
 
-fn get_type_string(path: &syn::TypePath) -> Result<String, &'static str> {
-    let mut error = None;
-    let operation = path
-        .path
-        .segments
-        .iter()
-        .map(|segment| {
-            segment.ident.to_string()
-                + match get_argument_string(&segment.arguments) {
-                    Ok(ref string) => string,
-                    Err(err) => {
-                        error = Some(err);
-                        ""
-                    }
-                }
-        })
-        .collect::<String>();
-    match error {
-        None => Ok(operation),
-        Some(err) => Err(err),
+fn get_type_string(path: &syn::TypePath, separator: &str) -> Result<String, &'static str> {
+    let mut type_name = String::new();
+    for segment in path.path.segments.iter() {
+        type_name += &segment.ident.to_string();
+        type_name += separator;
+        type_name += &get_argument_string(&segment.arguments)?;
     }
+    Ok(type_name)
 }
 
 fn get_argument_string(arguments: &syn::PathArguments) -> Result<String, &'static str> {
@@ -250,28 +235,7 @@ fn get_argument_string(arguments: &syn::PathArguments) -> Result<String, &'stati
 
 fn get_type_path_string(type_argument: &syn::Type) -> Result<String, &'static str> {
     match type_argument {
-        syn::Type::Path(ref argpath) => {
-            let mut error = None;
-            let operation = argpath
-                .path
-                .segments
-                .iter()
-                .map(|argsegment| {
-                    format!("{}_", argsegment.ident)
-                        + match get_argument_string(&argsegment.arguments) {
-                            Ok(ref string) => string,
-                            Err(err) => {
-                                error = Some(err);
-                                ""
-                            }
-                        }
-                })
-                .collect::<String>();
-            match error {
-                None => Ok(operation),
-                Some(err) => Err(err),
-            }
-        }
+        syn::Type::Path(ref path) => get_type_string(path, "_"),
         _ => Err("Type argument not covered"),
     }
 }
