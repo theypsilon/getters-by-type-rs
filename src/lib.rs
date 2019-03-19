@@ -110,13 +110,16 @@ impl ImplContext {
     fn transform_ast(&self) -> TokenStream {
         let fields_by_type = match self.ast.data {
             syn::Data::Struct(ref class) => self.read_fields(&class.fields),
-            _ => panic!("{} can only be derived for structs.", self.derive_name),
+            _ => panic!(
+                "The type '{}' is not a struct but tries to derive '{}' which can only be used on structs.",
+                self.ast.ident, self.derive_name
+            ),
         };
         let mut methods = Vec::<TokenTree>::new();
-        for (type_name, fields_sharing_type) in fields_by_type.into_iter() {
+        for (type_pieces, fields_sharing_type) in fields_by_type.into_iter() {
             let return_type = MethodReturnType {
                 ident: fields_sharing_type.type_ident,
-                name: fix_type_name(&type_name),
+                name: make_type_name_from_type_pieces(type_pieces),
             };
             methods.extend(self.make_method_tokens("get_fields", &return_type, false, fields_sharing_type.immutable_fields));
             if self.with_mutability {
@@ -136,21 +139,21 @@ impl ImplContext {
         tokens.into()
     }
 
-    fn read_fields<'a>(&self, fields: &'a syn::Fields) -> HashMap<String, FieldsSharingType<'a>> {
-        let mut fields_by_type = HashMap::<String, FieldsSharingType>::new();
+    fn read_fields<'a>(&self, fields: &'a syn::Fields) -> HashMap<Vec<TypePart<'a>>, FieldsSharingType<'a>> {
+        let mut fields_by_type = HashMap::<Vec<TypePart>, FieldsSharingType>::new();
         for field in fields.iter() {
             if let Some(ref ident) = field.ident {
                 let info = get_info_from_type(&field.ty);
-                match get_type_name_from_type(&field.ty) {
-                    Ok(type_name) => {
-                        let fields_by_type = fields_by_type.entry(type_name).or_insert_with(|| FieldsSharingType::new(info.type_ident));
+                match make_idents_from_type(&field.ty) {
+                    Ok(type_pieces) => {
+                        let fields_by_type = fields_by_type.entry(type_pieces).or_insert_with(|| FieldsSharingType::new(info.type_ident));
                         if info.is_mutable && self.with_mutability {
                             fields_by_type.mutable_fields.push(ident);
                         }
                         fields_by_type.immutable_fields.push(ident);
                     }
                     Err(err) => {
-                        eprintln!("[WARNING::{}] {} for field: {}", self.derive_name, err, ident);
+                        eprintln!("[WARNING::{}] Field '{}' of struct '{}' not covered because: {}", self.derive_name, ident, self.ast.ident, err);
                     }
                 }
             }
@@ -204,6 +207,21 @@ struct TypeInfo<'a> {
     type_ident: &'a syn::Type,
 }
 
+#[derive(Hash, PartialEq, Eq)]
+enum TypePart<'a> {
+    Ident(&'a syn::Ident),
+    Separator(&'static str),
+}
+
+impl<'a> TypePart<'a> {
+    fn to_string(&self) -> String {
+        match self {
+            TypePart::Ident(i) => i.to_string(),
+            TypePart::Separator(s) => s.to_string(),
+        }
+    }
+}
+
 fn get_info_from_type(ty: &syn::Type) -> TypeInfo {
     let (type_ident, is_mutable) = match ty {
         syn::Type::Reference(ref reference) => match *reference.elem {
@@ -215,63 +233,63 @@ fn get_info_from_type(ty: &syn::Type) -> TypeInfo {
     TypeInfo { is_mutable, type_ident }
 }
 
-fn get_type_name_from_type(ty: &syn::Type) -> Result<String, &'static str> {
-    let mut type_name = String::with_capacity(64);
-    fill_type_name_from_type(&mut type_name, ty)?;
-    Ok(type_name)
+fn make_idents_from_type<'a>(ty: &'a syn::Type) -> Result<Vec<TypePart<'a>>, &'static str> {
+    let mut type_pieces = Vec::<TypePart<'a>>::with_capacity(8);
+    fill_type_pieces_from_type(&mut type_pieces, ty)?;
+    Ok(type_pieces)
 }
 
-fn fill_type_name_from_type(type_name: &mut String, ty: &syn::Type) -> Result<(), &'static str> {
+fn fill_type_pieces_from_type<'a>(type_pieces: &mut Vec<TypePart<'a>>, ty: &'a syn::Type) -> Result<(), &'static str> {
     match ty {
-        syn::Type::Path(ref path) => fill_type_name_from_type_path(type_name, path),
+        syn::Type::Path(ref path) => fill_type_pieces_from_type_path(type_pieces, path),
         syn::Type::Reference(ref reference) => match *reference.elem {
-            syn::Type::Path(ref path) => fill_type_name_from_type_path(type_name, path),
-            _ => Err("Reference not covered"),
+            syn::Type::Path(ref path) => fill_type_pieces_from_type_path(type_pieces, path),
+            _ => Err("syn::Type::Reference is partially implemented at the moment."),
         },
         syn::Type::BareFn(ref function) => {
-            *type_name += "fn";
+            type_pieces.push(TypePart::Separator("fn"));
             if !function.inputs.is_empty() {
                 for arg in function.inputs.iter() {
-                    *type_name += "_";
-                    fill_type_name_from_type(type_name, &arg.ty)?;
+                    type_pieces.push(TypePart::Separator("_"));
+                    fill_type_pieces_from_type(type_pieces, &arg.ty)?;
                 }
             }
-            *type_name += "_";
-            fill_type_name_from_return_type(type_name, &function.output)?;
+            type_pieces.push(TypePart::Separator("_"));
+            fill_type_pieces_from_return_type(type_pieces, &function.output)?;
             Ok(())
         }
-        syn::Type::Slice(_) => Err("Type Slice not covered"),
-        syn::Type::Array(_) => Err("Type Array not covered"),
-        syn::Type::Ptr(_) => Err("Type Ptr not covered"),
-        syn::Type::Never(_) => Err("Type Never not covered"),
-        syn::Type::Tuple(_) => Err("Type Tuple not covered"),
-        syn::Type::TraitObject(_) => Err("Type TraitObject not covered"),
-        syn::Type::ImplTrait(_) => Err("Type ImplTrait not covered"),
-        syn::Type::Paren(_) => Err("Type Paren not covered"),
-        syn::Type::Group(_) => Err("Type Group not covered"),
-        syn::Type::Infer(_) => Err("Type Infer not covered"),
-        syn::Type::Macro(_) => Err("Type Macro not covered"),
-        syn::Type::Verbatim(_) => Err("Type Verbatim not covered"),
+        syn::Type::Slice(_) => Err("syn::Type::Slice are not implemented yet."),
+        syn::Type::Array(_) => Err("syn::Type::Array are not implemented yet."),
+        syn::Type::Ptr(_) => Err("syn::Type::Ptr are not implemented yet."),
+        syn::Type::Never(_) => Err("syn::Type::Never are not implemented yet."),
+        syn::Type::Tuple(_) => Err("syn::Type::Tuple are not implemented yet."),
+        syn::Type::TraitObject(_) => Err("syn::Type::TraitObject are not implemented yet."),
+        syn::Type::ImplTrait(_) => Err("syn::Type::ImplTrait are not implemented yet."),
+        syn::Type::Paren(_) => Err("syn::Type::Paren are not implemented yet."),
+        syn::Type::Group(_) => Err("syn::Type::Group are not implemented yet."),
+        syn::Type::Infer(_) => Err("syn::Type::Infer are not implemented yet."),
+        syn::Type::Macro(_) => Err("syn::Type::Macro are not implemented yet."),
+        syn::Type::Verbatim(_) => Err("syn::Type::Verbatim are not implemented yet."),
     }
 }
 
-fn fill_type_name_from_type_path(type_name: &mut String, path: &syn::TypePath) -> Result<(), &'static str> {
+fn fill_type_pieces_from_type_path<'a>(type_pieces: &mut Vec<TypePart<'a>>, path: &'a syn::TypePath) -> Result<(), &'static str> {
     for segment in path.path.segments.iter() {
-        *type_name += &segment.ident.to_string();
-        fill_type_name_from_path_arguments(type_name, &segment.arguments)?;
+        type_pieces.push(TypePart::Ident(&segment.ident));
+        fill_type_pieces_from_path_arguments(type_pieces, &segment.arguments)?;
     }
     Ok(())
 }
 
-fn fill_type_name_from_path_arguments(type_name: &mut String, arguments: &syn::PathArguments) -> Result<(), &'static str> {
+fn fill_type_pieces_from_path_arguments<'a>(type_pieces: &mut Vec<TypePart<'a>>, arguments: &'a syn::PathArguments) -> Result<(), &'static str> {
     match arguments {
         syn::PathArguments::AngleBracketed(ref angle) => {
-            *type_name += "<";
+            type_pieces.push(TypePart::Separator("<"));
             for arg in &angle.args {
                 match arg {
                     syn::GenericArgument::Type(ref ty) => {
-                        fill_type_name_from_type(type_name, ty)?;
-                        *type_name += "_";
+                        fill_type_pieces_from_type(type_pieces, ty)?;
+                        type_pieces.push(TypePart::Separator(","));
                     }
                     syn::GenericArgument::Lifetime(_) => {}
                     syn::GenericArgument::Binding(_) => {}
@@ -279,37 +297,40 @@ fn fill_type_name_from_path_arguments(type_name: &mut String, arguments: &syn::P
                     syn::GenericArgument::Const(_) => {}
                 };
             }
-            type_name.truncate(type_name.len() - 1);
-            *type_name += ">";
+            type_pieces.truncate(type_pieces.len() - 1);
+            type_pieces.push(TypePart::Separator(">"));
         }
         syn::PathArguments::None => {}
         syn::PathArguments::Parenthesized(ref paren) => {
-            *type_name += "(";
+            type_pieces.push(TypePart::Separator("("));
             for arg in &paren.inputs {
-                fill_type_name_from_type(type_name, arg)?;
-                *type_name += "_";
+                fill_type_pieces_from_type(type_pieces, arg)?;
+                type_pieces.push(TypePart::Separator(","));
             }
-            type_name.truncate(type_name.len() - 1);
-            *type_name += ")";
-            fill_type_name_from_return_type(type_name, &paren.output)?;
+            type_pieces.truncate(type_pieces.len() - 1);
+            type_pieces.push(TypePart::Separator(")"));
+            fill_type_pieces_from_return_type(type_pieces, &paren.output)?;
         }
     }
     Ok(())
 }
 
-fn fill_type_name_from_return_type(type_name: &mut String, output: &syn::ReturnType) -> Result<(), &'static str> {
+fn fill_type_pieces_from_return_type<'a>(type_pieces: &mut Vec<TypePart<'a>>, output: &'a syn::ReturnType) -> Result<(), &'static str> {
     match output {
         syn::ReturnType::Default => Ok(()),
-        syn::ReturnType::Type(_, ref arg) => fill_type_name_from_type(type_name, &**arg),
+        syn::ReturnType::Type(_, ref arg) => fill_type_pieces_from_type(type_pieces, &**arg),
     }
 }
 
-fn fix_type_name(name: &str) -> String {
-    name.to_string()
+fn make_type_name_from_type_pieces(type_pieces: Vec<TypePart>) -> String {
+    type_pieces
+        .into_iter()
+        .map(|piece| piece.to_string())
+        .collect::<String>()
         .to_lowercase()
         .chars()
         .map(|c| match c {
-            '<' | '>' | '(' | ')' | '-' => '_',
+            '<' | '>' | '(' | ')' | '-' | ',' => '_',
             _ => c,
         })
         .collect()
