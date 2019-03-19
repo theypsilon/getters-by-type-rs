@@ -13,10 +13,12 @@ repository = "https://github.com/theypsilon/getters-by-type-rs"
 keywords = ["getter", "struct", "derive", "field", "get"]
 categories = ["rust-patterns"]
 
+[lib]
+proc-macro = true
+
 [dependencies]
 quote = "0.6"
 proc-macro2 = "0.4.27"
-syn = "0.15"
 
-[lib]
-proc-macro = true
+[dependencies.syn]
+version = "0.15"

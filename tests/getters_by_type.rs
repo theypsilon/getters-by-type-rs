@@ -56,7 +56,7 @@ mod tests {
         #[derive(GettersMutByType, Default)]
         struct Test {
             boom: IncDec<bool>,
-            badaboom: Pair<IncDec<bool>, Pair<i32, Pair<i32, i32>>>,
+            badaboom: Pair<IncDec<bool>, Pair<i32, Pair<i32, i32>>>, // pair_incdec_bool__pair_i32_pair_i32_i32___
             first: bool,
             second: bool,
             third: bool,
@@ -77,9 +77,9 @@ mod tests {
         assert_eq!(actual.get_mut_fields_bool().len(), 3);
         assert_eq!(actual.get_mut_fields_f32().len(), 2);
         assert_eq!(actual.get_mut_fields_i32().len(), 2);
-        assert_eq!(actual.get_mut_fields_incdec_bool__().len(), 1);
-        assert_eq!(actual.get_mut_fields_pair_bool_bool__().len(), 1);
-        assert_eq!(actual.get_fields_pair_incdec__bool__pair__i32_pair__i32_i32____().len(), 1);
+        assert_eq!(actual.get_mut_fields_incdec_bool_().len(), 1);
+        assert_eq!(actual.get_mut_fields_pair_bool_bool_().len(), 1);
+        assert_eq!(actual.get_fields_pair_incdec_bool__pair_i32_pair_i32_i32___().len(), 1);
     }
 
     #[test]
@@ -90,7 +90,7 @@ mod tests {
         }
 
         let actual = Test::default();
-        assert_eq!(actual.get_fields_incdec_incdec__bool___()[0].get_fields_t().len(), 2);
+        assert_eq!(actual.get_fields_incdec_incdec_bool__()[0].get_fields_t().len(), 2);
     }
 
     #[test]
@@ -116,5 +116,29 @@ mod tests {
         let mut actual = Test { value: 1 };
         *actual.get_mut_fields_i32()[0] = 20;
         assert_eq!(actual.value, 20);
+    }
+
+    #[test]
+    fn test_getters_by_type___with_box_fn_types___compiles_fine() {
+        #[derive(GettersByType)]
+        struct Test {
+            action: Box<Fn(i32) -> f32>,
+        }
+
+        let actual = Test { action: Box::new(|_| 0.0) };
+        assert_eq!(actual.get_fields_box_fn_i32_f32_().len(), 1);
+    }
+
+    #[test]
+    fn test_getters_by_type___with_fn_types___compiles_fine() {
+        #[derive(GettersByType)]
+        struct Test {
+            op: fn(i32) -> f32,
+        }
+        fn op(_: i32) -> f32 {
+            0.0
+        }
+        let actual = Test { op };
+        assert_eq!(actual.get_fields_fn_i32_f32().len(), 1);
     }
 }
