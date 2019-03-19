@@ -85,13 +85,13 @@ impl ImplContext {
         };
         let mut methods = Vec::<TokenTree>::new();
         for (type_name, fields_sharing_type) in fields_by_type.into_iter() {
-            let method_types = MethodTypes {
-                return_type: fields_sharing_type.type_ident,
-                type_name: fix_type_name(&type_name),
+            let return_type = MethodReturnType {
+                ident: fields_sharing_type.type_ident,
+                name: fix_type_name(&type_name),
             };
-            methods.extend(self.make_method_tokens("get_fields", &method_types, false, fields_sharing_type.immutable_fields));
+            methods.extend(self.make_method_tokens("get_fields", &return_type, false, fields_sharing_type.immutable_fields));
             if self.with_mutability {
-                methods.extend(self.make_method_tokens("get_mut_fields", &method_types, true, fields_sharing_type.mutable_fields));
+                methods.extend(self.make_method_tokens("get_mut_fields", &return_type, true, fields_sharing_type.mutable_fields));
             }
         }
         let (ty, generics) = (&self.ast.ident, &self.ast.generics);
@@ -128,11 +128,11 @@ impl ImplContext {
         fields_by_type
     }
 
-    fn make_method_tokens(&self, method_prefix: &str, method_types: &MethodTypes, mutability: bool, mut field_names: Vec<String>) -> proc_macro2::TokenStream {
+    fn make_method_tokens(&self, method_prefix: &str, return_type: &MethodReturnType, mutability: bool, mut field_names: Vec<String>) -> proc_macro2::TokenStream {
         let count = field_names.len();
         let field_idents = field_names.iter_mut().map(|i| syn::Ident::new(&i, Span::call_site()));
-        let method_name = syn::Ident::new(&format!("{}_{}", method_prefix, method_types.type_name), Span::call_site());
-        let (vis, return_type) = (&self.ast.vis, &method_types.return_type);
+        let method_name = syn::Ident::new(&format!("{}_{}", method_prefix, return_type.name), Span::call_site());
+        let (vis, return_type) = (&self.ast.vis, &return_type.ident);
         if mutability {
             quote! {
                 #vis fn #method_name(&mut self) -> [&mut #return_type; #count] {
@@ -149,9 +149,9 @@ impl ImplContext {
     }
 }
 
-struct MethodTypes {
-    return_type: syn::Type,
-    type_name: String,
+struct MethodReturnType {
+    ident: syn::Type,
+    name: String,
 }
 
 struct FieldsSharingType {
