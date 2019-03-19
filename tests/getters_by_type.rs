@@ -56,7 +56,7 @@ mod tests {
         #[derive(GettersMutByType, Default)]
         struct Test {
             boom: IncDec<bool>,
-            badaboom: Pair<IncDec<bool>, Pair<i32, Pair<i32, i32>>>, // pair_incdec_bool__pair_i32_pair_i32_i32___
+            badaboom: Pair<IncDec<bool>, Pair<i32, Pair<i32, i32>>>,
             first: bool,
             second: bool,
             third: bool,
