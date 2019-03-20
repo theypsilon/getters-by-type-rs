@@ -401,16 +401,9 @@ fn fill_type_pieces_from_type<'a>(type_pieces: &mut Vec<TypePart<'a>>, ty: &'a s
         syn::Type::Path(ref path) => fill_type_pieces_from_type_path(type_pieces, &path.path),
         syn::Type::Reference(ref reference) => fill_type_pieces_from_type(type_pieces, &reference.elem),
         syn::Type::BareFn(ref function) => {
-            type_pieces.push(TypePart::Separator("fn"));
-            type_pieces.push(TypePart::Separator("("));
-            if !function.inputs.is_empty() {
-                for arg in function.inputs.iter() {
-                    fill_type_pieces_from_type(type_pieces, &arg.ty)?;
-                    type_pieces.push(TypePart::Separator(","));
-                }
-                type_pieces.truncate(type_pieces.len() - 1);
-            }
-            type_pieces.push(TypePart::Separator(")"));
+            type_pieces.push(TypePart::Separator("fn("));
+            fill_type_pieces_from_array_of_inputs(type_pieces, &function.inputs, ",", |type_pieces, arg| fill_type_pieces_from_type(type_pieces, &arg.ty))?;
+            type_pieces.push(TypePart::Separator(")"));)
             fill_type_pieces_from_return_type(type_pieces, &function.output)?;
             Ok(())
         }
@@ -436,13 +429,7 @@ fn fill_type_pieces_from_type<'a>(type_pieces: &mut Vec<TypePart<'a>>, ty: &'a s
         }
         syn::Type::Tuple(tuple) => {
             type_pieces.push(TypePart::Separator("("));
-            if !tuple.elems.is_empty() {
-                for element in tuple.elems.iter() {
-                    fill_type_pieces_from_type(type_pieces, &element)?;
-                    type_pieces.push(TypePart::Separator(","));
-                }
-                type_pieces.truncate(type_pieces.len() - 1);
-            }
+            fill_type_pieces_from_array_of_inputs(type_pieces, &tuple.elems, ",", fill_type_pieces_from_type)?;
             type_pieces.push(TypePart::Separator(")"));
             Ok(())
         }
@@ -477,20 +464,10 @@ fn fill_type_pieces_from_trait_object<'a>(type_pieces: &mut Vec<TypePart<'a>>, t
     if trait_object.dyn_token.is_some() {
         type_pieces.push(TypePart::Separator("dyn_"));
     }
-    if !trait_object.bounds.is_empty() {
-        for bound in trait_object.bounds.iter() {
-            match bound {
-                syn::TypeParamBound::Trait(trait_bound) => {
-                    fill_type_pieces_from_type_path(type_pieces, &trait_bound.path)?;
-                    type_pieces.push(TypePart::Separator(","));
-                }
-                syn::TypeParamBound::Lifetime(_) => {}
-            };
-        }
-        if let TypePart::Separator(_) = type_pieces[type_pieces.len() - 1] {
-            type_pieces.truncate(type_pieces.len() - 1);
-        }
-    }
+    fill_type_pieces_from_array_of_inputs(type_pieces, &trait_object.bounds, "+", |type_pieces, bound| match bound {
+        syn::TypeParamBound::Trait(trait_bound) => fill_type_pieces_from_type_path(type_pieces, &trait_bound.path),
+        syn::TypeParamBound::Lifetime(_) => Ok(())
+    })?;
     Ok(())
 }
 
@@ -506,33 +483,43 @@ fn fill_type_pieces_from_path_arguments<'a>(type_pieces: &mut Vec<TypePart<'a>>,
     match arguments {
         syn::PathArguments::AngleBracketed(ref angle) => {
             type_pieces.push(TypePart::Separator("<"));
-            for arg in &angle.args {
-                match arg {
-                    syn::GenericArgument::Type(ref ty) => {
-                        fill_type_pieces_from_type(type_pieces, ty)?;
-                        type_pieces.push(TypePart::Separator(","));
-                    }
-                    syn::GenericArgument::Lifetime(_) => {}
-                    syn::GenericArgument::Binding(_) => {}
-                    syn::GenericArgument::Constraint(_) => {}
-                    syn::GenericArgument::Const(_) => {}
-                };
-            }
-            type_pieces.truncate(type_pieces.len() - 1);
+            fill_type_pieces_from_array_of_inputs(type_pieces, &angle.args, ",", |type_pieces, arg| match arg {
+                syn::GenericArgument::Type(ref ty) => fill_type_pieces_from_type(type_pieces, ty),
+                syn::GenericArgument::Lifetime(_) => Ok(()),
+                syn::GenericArgument::Binding(_) => Ok(()),
+                syn::GenericArgument::Constraint(_) => Ok(()),
+                syn::GenericArgument::Const(_) => Ok(()),
+            })?;
             type_pieces.push(TypePart::Separator(">"));
         }
         syn::PathArguments::None => {}
         syn::PathArguments::Parenthesized(ref paren) => {
             type_pieces.push(TypePart::Separator("("));
-            if !paren.inputs.is_empty() {
-                for arg in &paren.inputs {
-                    fill_type_pieces_from_type(type_pieces, arg)?;
-                    type_pieces.push(TypePart::Separator(","));
-                }
-                type_pieces.truncate(type_pieces.len() - 1);
-            }
+            fill_type_pieces_from_array_of_inputs(type_pieces, &paren.inputs, ",", fill_type_pieces_from_type)?;
             type_pieces.push(TypePart::Separator(")"));
             fill_type_pieces_from_return_type(type_pieces, &paren.output)?;
+        }
+    }
+    Ok(())
+}
+
+fn fill_type_pieces_from_array_of_inputs<'a, T, U>(
+    type_pieces: &mut Vec<TypePart<'a>>,
+    inputs: &'a syn::punctuated::Punctuated<T, U>,
+    separator: &'static str,
+    action: impl Fn(&mut Vec<TypePart<'a>>, &'a T) -> Result<(), &'static str>,
+) -> Result<(), &'static str> {
+    if !inputs.is_empty() {
+        for arg in inputs {
+            action(type_pieces, arg)?;
+            match type_pieces[type_pieces.len() - 1] {
+                TypePart::Separator(_s) if _s == separator => {},
+                _ => type_pieces.push(TypePart::Separator(separator))
+            }
+        }
+        match type_pieces[type_pieces.len() - 1] {
+            TypePart::Separator(_s) if _s == separator => type_pieces.truncate(type_pieces.len() - 1),
+            _ => {}
         }
     }
     Ok(())
