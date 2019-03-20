@@ -58,7 +58,7 @@ getters-by-type = "*"
 
 ## Development
 
-This currently works with primitive types, and many other referencial and genecic types, such as &str or Vec, but there are cases that currently are not covered, like the fn types. Want to contribute? Pull requests are always welcome. Because this is my first work with procedural macros, I guess thinks can improve a fair lot under the hood, so there should be a few low hanging fruits already. Let's go for them!
+This currently works with primitive types, and many other referencial and genecic types, such as &str or Vec, but there are cases that currently are not covered, like the pointer types. Want to contribute? Pull requests are always welcome. Because this is my first work with procedural macros, I guess thinks can improve a fair lot under the hood, so there should be a few low hanging fruits already. Let's go for them!
 
 ## License
 
