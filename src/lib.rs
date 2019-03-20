@@ -503,6 +503,13 @@ fn fill_type_pieces_from_path_arguments<'a>(type_pieces: &mut Vec<TypePart<'a>>,
     Ok(())
 }
 
+fn fill_type_pieces_from_return_type<'a>(type_pieces: &mut Vec<TypePart<'a>>, output: &'a syn::ReturnType) -> Result<(), &'static str> {
+    match output {
+        syn::ReturnType::Default => Ok(()),
+        syn::ReturnType::Type(_, ref arg) => fill_type_pieces_from_type(type_pieces, &**arg),
+    }
+}
+
 fn fill_type_pieces_from_array_of_inputs<'a, T, U>(
     type_pieces: &mut Vec<TypePart<'a>>,
     inputs: &'a syn::punctuated::Punctuated<T, U>,
@@ -523,13 +530,6 @@ fn fill_type_pieces_from_array_of_inputs<'a, T, U>(
         }
     }
     Ok(())
-}
-
-fn fill_type_pieces_from_return_type<'a>(type_pieces: &mut Vec<TypePart<'a>>, output: &'a syn::ReturnType) -> Result<(), &'static str> {
-    match output {
-        syn::ReturnType::Default => Ok(()),
-        syn::ReturnType::Type(_, ref arg) => fill_type_pieces_from_type(type_pieces, &**arg),
-    }
 }
 
 fn make_type_name_from_type_pieces(type_pieces: Vec<TypePart>) -> String {
