@@ -1,5 +1,5 @@
 //!
-//! This crate provides [`GettersByType`](derive.GettersByType.html) and [`GettersMutByType`](derive.GettersMutByType.html) derive macros for structs, which implements a getter method for each type they contain.
+//! This crate provides [`GettersByType`](derive.GettersByType.html) and [`GettersMutByType`](derive.GettersMutByType.html) derive macros for structs, which implement a getter method for each type they contain.
 //! The getter methods return an array containing references to all the fields of the same type.
 //! The `GettersMutByType` derive also adds a mut version for those methods.
 //!
