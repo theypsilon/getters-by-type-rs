@@ -8,7 +8,6 @@ This crate provides `GettersByType` derive macro for structs, which implements a
 Example using `GettersByType` :
 
 ```rust
-use getters_by_type::GettersByType;
 #[derive(GettersByType)]
 struct Foo {
     first: i32,
@@ -31,23 +30,19 @@ Example using `GettersMutByType` :
 
 
 ```rust
-use getters_by_type::GettersMutByType;
-
-#[derive(Default)]
-struct Updater {}
-impl Updater {
-    fn update(&mut self) {/*...*/}
-}
-
-#[derive(GettersMutByType, Default)]
+#[derive(GettersMutByType)]
 struct Foo {
     first: Updater,
     second: Updater,
-    /*...*/
+    ...
     onehundredth: Updater,
 }
 
-let mut object = Foo::default();
+impl Updater {
+    fn update(&mut self) {...}
+}
+
+let mut object = Foo::new();
 
 // Let's update all the Updater fields
 for updater in object.get_mut_fields_updater().iter_mut() {
@@ -59,7 +54,7 @@ In this example, the return type of the method `get_mut_fields_updater` would be
 There is no dynamic memory allocation happening within the getter methods, as they just return a fixed array with references.
 There isn't also unsafe code being generated.
 
-Check more examples on the test file: [tests/getters_by_type.rs](tests/getters_by_type.rs)
+For more information, check the [documentation page](https://docs.rs/getters-by-type).
 
 ## Usage
 
