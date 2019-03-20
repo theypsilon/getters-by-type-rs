@@ -148,18 +148,18 @@ use std::collections::HashMap;
 ///
 /// There are still some types not implemented. Those are the following:
 ///
-/// * Slice
-/// * Array
-/// * Ptr
-/// * Never
-/// * Tuple
-/// * TraitObject
-/// * ImplTrait
-/// * Paren
-/// * Group
-/// * Infer
-/// * Macro
-/// * Verbatim
+/// * `Slice`
+/// * `Array`
+/// * `Ptr`
+/// * `Never`
+/// * `Tuple`
+/// * `TraitObject`
+/// * `ImplTrait`
+/// * `Paren`
+/// * `Group`
+/// * `Infer`
+/// * `Macro`
+/// * `Verbatim`
 ///
 /// Hopefully, they will get implemented in next releases.
 ///
