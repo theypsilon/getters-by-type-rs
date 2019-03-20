@@ -403,7 +403,7 @@ fn fill_type_pieces_from_type<'a>(type_pieces: &mut Vec<TypePart<'a>>, ty: &'a s
         syn::Type::BareFn(ref function) => {
             type_pieces.push(TypePart::Separator("fn("));
             fill_type_pieces_from_array_of_inputs(type_pieces, &function.inputs, ",", |type_pieces, arg| fill_type_pieces_from_type(type_pieces, &arg.ty))?;
-            type_pieces.push(TypePart::Separator(")"));)
+            type_pieces.push(TypePart::Separator(")"));
             fill_type_pieces_from_return_type(type_pieces, &function.output)?;
             Ok(())
         }
@@ -466,7 +466,7 @@ fn fill_type_pieces_from_trait_object<'a>(type_pieces: &mut Vec<TypePart<'a>>, t
     }
     fill_type_pieces_from_array_of_inputs(type_pieces, &trait_object.bounds, "+", |type_pieces, bound| match bound {
         syn::TypeParamBound::Trait(trait_bound) => fill_type_pieces_from_type_path(type_pieces, &trait_bound.path),
-        syn::TypeParamBound::Lifetime(_) => Ok(())
+        syn::TypeParamBound::Lifetime(_) => Ok(()),
     })?;
     Ok(())
 }
@@ -520,8 +520,8 @@ fn fill_type_pieces_from_array_of_inputs<'a, T, U>(
         for arg in inputs {
             action(type_pieces, arg)?;
             match type_pieces[type_pieces.len() - 1] {
-                TypePart::Separator(_s) if _s == separator => {},
-                _ => type_pieces.push(TypePart::Separator(separator))
+                TypePart::Separator(_s) if _s == separator => {}
+                _ => type_pieces.push(TypePart::Separator(separator)),
             }
         }
         match type_pieces[type_pieces.len() - 1] {
