@@ -84,7 +84,7 @@ use std::collections::HashMap;
 ///
 /// It works the same with fn, generic and reference types, with the following exception:
 /// 1. Characters `<` `>` `(` `)` `,` get converted to `_`.
-/// 2. Return type arrow "->" and reference character `&` get ignored completely.
+/// 2. Return type arrow `->` and reference character `&` get ignored completely.
 ///
 /// Also, reference types and non-reference types will be covered by the same
 /// method, as the methods are always returning references in the first place.
