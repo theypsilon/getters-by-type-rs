@@ -39,14 +39,14 @@
 //!     first: Updater,
 //!     second: Updater,
 //!     /*...*/
-//! onehundredth: Updater,
+//!     onehundredth: Updater,
 //! }
 //!
 //! let mut object = Foo::default();
 //!
 //! // Let's update all the Updater fields
 //! for updater in object.get_mut_fields_updater().iter_mut() {
-//! updater.update();
+//!     updater.update();
 //! }
 //! ```
 //!
