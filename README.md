@@ -67,7 +67,7 @@ getters-by-type = "*"
 
 ## Development
 
-This currently works with primitive types, and many other referencial and genecic types, such as `&str` or `Vec`, but there are cases that are not completely covered, like the trait objects. Want to contribute? Pull requests are always welcome. Because this is my first work with procedural macros, I guess thinks can improve a fair lot under the hood, so there should be a few low hanging fruits already. Let's go for them!
+This currently works with primitive types, and many other referencial and genecic types, such as `&str` or `Vec`, but there are cases that are not completely covered, like the trait objects. Want to contribute? Pull requests are always welcome. Because this is my first work with procedural macros, I guess things can improve a fair lot under the hood, so there should be a few low hanging fruits already. Let's go for them!
 
 ## License
 
