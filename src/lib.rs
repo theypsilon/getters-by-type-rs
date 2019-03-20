@@ -1,5 +1,5 @@
 //!
-//! This crate provides [`GettersByType`](derive.GettersByType.html) and [`GettersMutByType`](derive.GettersMutByType.html) derive macros for structs, which implement a getter method for each type they contain.
+//! This crate provides [`GettersByType`](derive.GettersByType.html) derive macro for structs, which implements a getter method for each type they contain.
 //!
 //! Example using `GettersByType` :
 //!
@@ -19,8 +19,10 @@
 //! ```
 //!
 //! As you notice, the getter methods return an array containing references to all the fields of the same type.
-//! The `GettersMutByType` derive also adds a mut version for those methods.
-//! 
+//! In that example, the return type of the method `get_fields_i32` would be `[&i32; 3]`.
+//!
+//! This crate also provides a `mut` version [`GettersMutByType`](derive.GettersMutByType.html) which also adds a mut version for those methods.
+//!
 //! Example using `GettersMutByType` :
 //!
 //!
@@ -49,6 +51,9 @@
 //! }
 //! ```
 //!
+//! In this example, the return type of the method `get_mut_fields_updater` would be `[&mut Updater; 3]`.
+//! There is no dynamic memory allocation happening within the getter methods, as they just return a fixed array with references.
+//! There isn't also unsafe code being generated.
 //! For more documentation and examples, see each respective documentation section.
 
 extern crate proc_macro;
