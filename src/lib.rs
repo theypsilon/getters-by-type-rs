@@ -379,18 +379,18 @@ fn fill_type_pieces_from_type<'a>(type_pieces: &mut Vec<TypePart<'a>>, ty: &'a s
             fill_type_pieces_from_return_type(type_pieces, &function.output)?;
             Ok(())
         }
-        syn::Type::Slice(_) => Err("syn::Type::Slice are not implemented yet."),
-        syn::Type::Array(_) => Err("syn::Type::Array are not implemented yet."),
-        syn::Type::Ptr(_) => Err("syn::Type::Ptr are not implemented yet."),
-        syn::Type::Never(_) => Err("syn::Type::Never are not implemented yet."),
-        syn::Type::Tuple(_) => Err("syn::Type::Tuple are not implemented yet."),
-        syn::Type::TraitObject(_) => Err("syn::Type::TraitObject are not implemented yet."),
-        syn::Type::ImplTrait(_) => Err("syn::Type::ImplTrait are not implemented yet."),
-        syn::Type::Paren(_) => Err("syn::Type::Paren are not implemented yet."),
-        syn::Type::Group(_) => Err("syn::Type::Group are not implemented yet."),
-        syn::Type::Infer(_) => Err("syn::Type::Infer are not implemented yet."),
-        syn::Type::Macro(_) => Err("syn::Type::Macro are not implemented yet."),
-        syn::Type::Verbatim(_) => Err("syn::Type::Verbatim are not implemented yet."),
+        syn::Type::Slice(_) => Err("syn::Type::Slice is not implemented yet."),
+        syn::Type::Array(_) => Err("syn::Type::Array is not implemented yet."),
+        syn::Type::Ptr(_) => Err("syn::Type::Ptr is not implemented yet."),
+        syn::Type::Never(_) => Err("syn::Type::Never is not implemented yet."),
+        syn::Type::Tuple(_) => Err("syn::Type::Tuple is not implemented yet."),
+        syn::Type::TraitObject(_) => Err("syn::Type::TraitObject is not implemented yet."),
+        syn::Type::ImplTrait(_) => Err("syn::Type::ImplTrait is not implemented yet."),
+        syn::Type::Paren(_) => Err("syn::Type::Paren is not implemented yet."),
+        syn::Type::Group(_) => Err("syn::Type::Group is not implemented yet."),
+        syn::Type::Infer(_) => Err("syn::Type::Infer is not implemented yet."),
+        syn::Type::Macro(_) => Err("syn::Type::Macro is not implemented yet."),
+        syn::Type::Verbatim(_) => Err("syn::Type::Verbatim is not implemented yet."),
     }
 }
 
