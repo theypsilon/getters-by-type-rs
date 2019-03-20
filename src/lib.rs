@@ -1,5 +1,5 @@
 //!
-//! This crate provides `GettersByType` and `GettersMutByType` derive macros for structs, which implements a getter method for each type they contain.
+//! This crate provides [`GettersByType`](derive.GettersByType.html) and [`GettersMutByType`](derive.GettersMutByType.html) derive macros for structs, which implements a getter method for each type they contain.
 //! The getter methods return an array containing references to all the fields of the same type.
 //! The `GettersMutByType` derive also adds a mut version for those methods.
 //!
@@ -188,7 +188,7 @@ pub fn getters_by_type(input: TokenStream) -> TokenStream {
 /// }
 /// ```
 ///
-/// This is the mutable version of 'GettersByType'.
+/// This is the mutable version of `GettersByType`.
 /// The same rules are applying, so check the [GettersByType derive](derive.GettersByType.html) documentation first.
 ///
 /// There is one important difference, thought. There are some fields with types that
