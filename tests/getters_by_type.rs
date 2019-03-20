@@ -141,4 +141,36 @@ mod tests {
         let actual = Test { op };
         assert_eq!(actual.get_fields_fn_i32_f32().len(), 1);
     }
+
+    #[test]
+    fn test_getters_by_type___with_tuple_types___compiles_fine() {
+        #[derive(GettersByType, Default)]
+        struct Test {
+            tuple: (i32, i32),
+        }
+        let actual = Test::default();
+        assert_eq!(actual.get_fields__i32_i32_().len(), 1);
+    }
+
+    #[test]
+    fn test_getters_by_type___with_array_types_with_int_length___compiles_fine() {
+        #[derive(GettersByType, Default)]
+        struct Test {
+            tuple: [i32; 2],
+        }
+        let actual = Test::default();
+        assert_eq!(actual.get_fields__i32_2_().len(), 1);
+    }
+
+    #[test]
+    fn test_getters_by_type___with_slices___compiles_fine() {
+        #[derive(GettersByType, Default)]
+        struct Test<'a> {
+            slice: &'a [i32],
+        }
+        let array = [1, 2, 3];
+        let actual = Test { slice: &array };
+        assert_eq!(actual.get_fields__i32_().len(), 1);
+    }
+
 }

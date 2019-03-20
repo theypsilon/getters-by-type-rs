@@ -82,14 +82,14 @@ use std::collections::HashMap;
 /// As you notice, the chars of all the types (`String` in this case) go
 /// to the method signature in lowercase form.
 ///
-/// It works the same with fn, generic and reference types, with the following exception:
-/// 1. Characters `<` `>` `(` `)` `,` get converted to `_`.
+/// It works the same with generic, reference and other types, with the following exception:
+/// 1. Characters `<` `>` `(` `)` `[` `]` `,` `;` get converted to `_`.
 /// 2. Return type arrow `->` and reference character `&` get ignored completely.
 ///
 /// Also, reference types and non-reference types will be covered by the same
 /// method, as the methods are always returning references in the first place.
 ///
-/// Example for fn, generic and reference types:
+/// Example for fn, generic and reference types (more examples for other types later):
 ///
 /// ```rust
 /// use getters_by_type::GettersByType;
@@ -120,7 +120,7 @@ use std::collections::HashMap;
 /// }
 /// ```
 ///
-/// Other types to method signature here:
+/// Other examples of types to method signature conversions here:
 ///
 /// ```rust
 /// use getters_by_type::GettersByType;
@@ -131,15 +131,21 @@ use std::collections::HashMap;
 ///     c: &'a Vec<&'a Option<&'a i32>>,
 ///     d: Result<i32, Result<i32, Result<i32, &'static str>>>,
 ///     e: Option<Option<Option<Option<Option<fn(usize)>>>>>,
+///     f: (i32, i32),
+///     g: [i32; 2],
+///     h: &'a [&'a Option<&'a i32>],
 /// }
 ///
 /// let v = vec!();
-/// let o = Foo { a: "", b: Box::new(|_| 0.0), c: &v, d: Ok(0), e: None };
+/// let o = Foo { a: "", b: Box::new(|_| 0.0), c: &v, d: Ok(0), e: None, f: (0, 0), g: [0, 0], h: v.as_slice() };
 /// o.get_fields_str();
 /// o.get_fields_box_fn_i32_f32_();
 /// o.get_fields_vec_option_i32__();
 /// o.get_fields_result_i32_result_i32_result_i32_str___();
 /// o.get_fields_option_option_option_option_option_fn_usize______();
+/// o.get_fields__i32_i32_();
+/// o.get_fields__i32_2_();
+/// o.get_fields__option_i32__();
 /// ```
 ///
 /// Method visibility is inherited directly from the struct visibility,
@@ -148,11 +154,8 @@ use std::collections::HashMap;
 ///
 /// There are still some types not implemented. Those are the following:
 ///
-/// * `Slice`
-/// * `Array`
 /// * `Ptr`
 /// * `Never`
-/// * `Tuple`
 /// * `TraitObject`
 /// * `ImplTrait`
 /// * `Paren`
@@ -206,7 +209,7 @@ pub fn getters_by_type(input: TokenStream) -> TokenStream {
 /// }
 ///
 /// let string = String::new();
-/// let o = Foo {
+/// let mut o = Foo {
 ///     a: &string,
 ///     b: "".into(),
 /// };
@@ -336,6 +339,7 @@ struct TypeInfo<'a> {
 #[derive(Hash, PartialEq, Eq)]
 enum TypePart<'a> {
     Ident(&'a syn::Ident),
+    Integer(u64),
     Separator(&'static str),
 }
 
@@ -344,6 +348,7 @@ impl<'a> TypePart<'a> {
         match self {
             TypePart::Ident(i) => i.to_string(),
             TypePart::Separator(s) => s.to_string(),
+            TypePart::Integer(i) => i.to_string(),
         }
     }
 }
@@ -365,7 +370,7 @@ fn make_idents_from_type<'a>(ty: &'a syn::Type) -> Result<Vec<TypePart<'a>>, &'s
 fn fill_type_pieces_from_type<'a>(type_pieces: &mut Vec<TypePart<'a>>, ty: &'a syn::Type) -> Result<(), &'static str> {
     match ty {
         syn::Type::Path(ref path) => fill_type_pieces_from_type_path(type_pieces, path),
-        syn::Type::Reference(ref reference) => fill_type_pieces_from_type(type_pieces, &*reference.elem),
+        syn::Type::Reference(ref reference) => fill_type_pieces_from_type(type_pieces, &reference.elem),
         syn::Type::BareFn(ref function) => {
             type_pieces.push(TypePart::Separator("fn"));
             type_pieces.push(TypePart::Separator("("));
@@ -380,13 +385,42 @@ fn fill_type_pieces_from_type<'a>(type_pieces: &mut Vec<TypePart<'a>>, ty: &'a s
             fill_type_pieces_from_return_type(type_pieces, &function.output)?;
             Ok(())
         }
-        syn::Type::Slice(_) => Err("syn::Type::Slice is not implemented yet."),
-        syn::Type::Array(_) => Err("syn::Type::Array is not implemented yet."),
-        syn::Type::Ptr(_) => Err("syn::Type::Ptr is not implemented yet."),
-        syn::Type::Never(_) => Err("syn::Type::Never is not implemented yet."),
-        syn::Type::Tuple(_) => Err("syn::Type::Tuple is not implemented yet."),
+        syn::Type::Slice(slice) => {
+            type_pieces.push(TypePart::Separator("["));
+            fill_type_pieces_from_type(type_pieces, &slice.elem)?;
+            type_pieces.push(TypePart::Separator("]"));
+            Ok(())
+        }
+        syn::Type::Array(array) => {
+            type_pieces.push(TypePart::Separator("["));
+            fill_type_pieces_from_type(type_pieces, &array.elem)?;
+            type_pieces.push(TypePart::Separator(";"));
+            match &array.len {
+                syn::Expr::Lit(lit) => match &lit.lit {
+                    syn::Lit::Int(int) => type_pieces.push(TypePart::Integer(int.value())),
+                    _ => return Err("syn::Lit::* are not implemented yet."),
+                },
+                _ => return Err("syn::Expr::* are not implemented yet."),
+            }
+            type_pieces.push(TypePart::Separator("]"));
+            Ok(())
+        }
+        syn::Type::Tuple(tuple) => {
+            type_pieces.push(TypePart::Separator("("));
+            if !tuple.elems.is_empty() {
+                for element in tuple.elems.iter() {
+                    fill_type_pieces_from_type(type_pieces, &element)?;
+                    type_pieces.push(TypePart::Separator(","));
+                }
+                type_pieces.truncate(type_pieces.len() - 1);
+            }
+            type_pieces.push(TypePart::Separator(")"));
+            Ok(())
+        }
         syn::Type::TraitObject(_) => Err("syn::Type::TraitObject is not implemented yet."),
         syn::Type::ImplTrait(_) => Err("syn::Type::ImplTrait is not implemented yet."),
+        syn::Type::Ptr(_) => Err("syn::Type::Ptr is not implemented yet."),
+        syn::Type::Never(_) => Err("syn::Type::Never is not implemented yet."),
         syn::Type::Paren(_) => Err("syn::Type::Paren is not implemented yet."),
         syn::Type::Group(_) => Err("syn::Type::Group is not implemented yet."),
         syn::Type::Infer(_) => Err("syn::Type::Infer is not implemented yet."),
@@ -442,9 +476,7 @@ fn fill_type_pieces_from_path_arguments<'a>(type_pieces: &mut Vec<TypePart<'a>>,
 fn fill_type_pieces_from_return_type<'a>(type_pieces: &mut Vec<TypePart<'a>>, output: &'a syn::ReturnType) -> Result<(), &'static str> {
     match output {
         syn::ReturnType::Default => Ok(()),
-        syn::ReturnType::Type(_, ref arg) => {
-            fill_type_pieces_from_type(type_pieces, &**arg)
-        },
+        syn::ReturnType::Type(_, ref arg) => fill_type_pieces_from_type(type_pieces, &**arg),
     }
 }
 
@@ -456,7 +488,7 @@ fn make_type_name_from_type_pieces(type_pieces: Vec<TypePart>) -> String {
         .to_lowercase()
         .chars()
         .map(|c| match c {
-            '<' | '>' | '(' | ')' | '-' | ',' => '_',
+            '<' | '>' | '(' | ')' | '[' | ']' | '-' | ',' | ';' => '_',
             _ => c,
         })
         .collect()
