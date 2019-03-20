@@ -451,24 +451,21 @@ fn fill_type_pieces_from_type<'a>(type_pieces: &mut Vec<TypePart<'a>>, ty: &'a s
             Ok(())
         }
         syn::Type::ImplTrait(_) => Err("syn::Type::ImplTrait can not be implemented."), // ImplTrait is not valid outside of functions and inherent return types, so can't be implemented.
-        syn::Type::TraitObject(trait_object) => fill_type_pieces_from_trait_object(type_pieces, trait_object),
+        syn::Type::TraitObject(trait_object) => {
+            if trait_object.dyn_token.is_some() {
+                type_pieces.push(TypePart::Separator("dyn_"));
+            }
+            fill_type_pieces_from_array_of_inputs(type_pieces, &trait_object.bounds, "+", |type_pieces, bound| match bound {
+                syn::TypeParamBound::Trait(trait_bound) => fill_type_pieces_from_type_path(type_pieces, &trait_bound.path),
+                syn::TypeParamBound::Lifetime(_) => Ok(()),
+            })?;
+        },
         syn::Type::Never(_) => Err("syn::Type::Never is not implemented yet."),
         syn::Type::Group(_) => Err("syn::Type::Group is not implemented yet."),
         syn::Type::Infer(_) => Err("syn::Type::Infer is not implemented yet."),
         syn::Type::Macro(_) => Err("syn::Type::Macro is not implemented yet."),
         syn::Type::Verbatim(_) => Err("syn::Type::Verbatim is not implemented yet."),
     }
-}
-
-fn fill_type_pieces_from_trait_object<'a>(type_pieces: &mut Vec<TypePart<'a>>, trait_object: &'a syn::TypeTraitObject) -> Result<(), &'static str> {
-    if trait_object.dyn_token.is_some() {
-        type_pieces.push(TypePart::Separator("dyn_"));
-    }
-    fill_type_pieces_from_array_of_inputs(type_pieces, &trait_object.bounds, "+", |type_pieces, bound| match bound {
-        syn::TypeParamBound::Trait(trait_bound) => fill_type_pieces_from_type_path(type_pieces, &trait_bound.path),
-        syn::TypeParamBound::Lifetime(_) => Ok(()),
-    })?;
-    Ok(())
 }
 
 fn fill_type_pieces_from_type_path<'a>(type_pieces: &mut Vec<TypePart<'a>>, path: &'a syn::Path) -> Result<(), &'static str> {
