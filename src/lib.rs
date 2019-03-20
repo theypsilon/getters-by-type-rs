@@ -464,8 +464,8 @@ fn fill_type_pieces_from_type<'a>(type_pieces: &mut Vec<TypePart<'a>>, ty: &'a s
             fill_type_pieces_from_array_of_inputs(type_pieces, &trait_object.bounds, "+", |type_pieces, bound| match bound {
                 syn::TypeParamBound::Trait(trait_bound) => fill_type_pieces_from_type_path(type_pieces, &trait_bound.path),
                 syn::TypeParamBound::Lifetime(_) => Ok(()),
-            })?;
-        },
+            })
+        }
         syn::Type::Never(_) => Err("syn::Type::Never is not implemented yet."),
         syn::Type::Group(_) => Err("syn::Type::Group is not implemented yet."),
         syn::Type::Infer(_) => Err("syn::Type::Infer is not implemented yet."),
