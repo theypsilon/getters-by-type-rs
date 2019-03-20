@@ -3,7 +3,8 @@
 [![Crates.io](https://img.shields.io/crates/v/getters-by-type.svg)](https://crates.io/crates/getters-by-type)
 [![Docs](https://docs.rs/getters-by-type/badge.svg)](https://docs.rs/getters-by-type)
 
-This crate provides `GettersByType` and `GettersMutByType` derive macros for structs. These derives implement a getter method for each type they contain.
+This crate provides `GettersByType` and `GettersMutByType` derive macros for structs.
+These derives implement a getter method for each type they contain.
 
 Example using `GettersByType` :
 
@@ -21,7 +22,8 @@ let test = Test { first: 6, second: 12, third: 24 };
 assert_eq!(test.get_fields_i32().iter().fold(0, |acc, x| **x + acc), 42);
 ```
 
-The getter methods return an array containing references to all the fields of the same type. The `GettersMutByType` derive also adds a mut version for those methods.
+As you can notice, the getter methods return an array containing references to all the fields of the same type.
+The `GettersMutByType` derive also adds a mut version for those methods.
 
 Example using `GettersMutByType` :
 
