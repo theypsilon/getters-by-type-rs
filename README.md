@@ -5,6 +5,8 @@
 
 This crate provides `GettersByType` derive macro for structs, which implements a getter method for each type they contain.
 
+The generated methods start with the prefix `get_fields_` and end with a transcription of the type they refer.
+
 Example using `GettersByType` :
 
 ```rust
@@ -25,6 +27,8 @@ As you notice, the getter methods return an array containing references to all t
 In that example, the return type of the method `get_fields_i32` would be `[&i32; 3]`.
 
 This crate also provides a `mut` version `GettersMutByType` which also adds a mut version for those methods.
+
+In this case, the generated methods start with the prefix `get_mut_fields_` instead.
 
 Example using `GettersMutByType` :
 

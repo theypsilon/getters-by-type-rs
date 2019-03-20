@@ -1,6 +1,8 @@
 //!
 //! This crate provides [`GettersByType`](derive.GettersByType.html) derive macro for structs, which implements a getter method for each type they contain.
 //!
+//! The generated methods start with the prefix `get_fields_` and end with a transcription of the type they refer.
+//!
 //! Example using `GettersByType` :
 //!
 //! ```rust
@@ -22,6 +24,8 @@
 //! In that example, the return type of the method `get_fields_i32` would be `[&i32; 3]`.
 //!
 //! This crate also provides a `mut` version [`GettersMutByType`](derive.GettersMutByType.html) which also adds a mut version for those methods.
+//!
+//! In this case, the generated methods start with the prefix `get_mut_fields_` instead.
 //!
 //! Example using `GettersMutByType` :
 //!
@@ -65,6 +69,10 @@ use std::collections::HashMap;
 
 /// The `GettersByType` macro automatically generates an `impl` for the given struct,
 /// implementing a getter method for each different type contained within the struct.
+///
+/// The generated methods start with the prefix `get_fields_` and end with a transcription of the type they refer.
+///
+/// Example:
 ///
 /// ```rust
 /// use getters_by_type::GettersByType;
@@ -209,6 +217,10 @@ pub fn getters_by_type(input: TokenStream) -> TokenStream {
 /// The `GettersMutByType` macro automatically generates an `impl` for the given struct,
 /// implementing a getter method for each different type contained within the struct.
 ///
+/// The generated methods start with the prefix `get_mut_fields_` and end with a transcription of the type they refer.
+///
+/// Example:
+///
 /// ```rust
 /// use getters_by_type::GettersMutByType;
 /// #[derive(GettersMutByType)]
@@ -230,7 +242,7 @@ pub fn getters_by_type(input: TokenStream) -> TokenStream {
 /// The same rules are applying, so check the [GettersByType derive](derive.GettersByType.html) documentation first.
 ///
 /// There is one important difference, thought. There are some fields with types that
-/// can't be make mutable. I.e. types with immutable references. When that's the case,
+/// can't be made mutable. I.e. types with immutable references. When that's the case,
 /// the field gets ignored completely.
 ///
 /// Example:
