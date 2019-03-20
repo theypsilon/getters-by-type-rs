@@ -173,4 +173,79 @@ mod tests {
         assert_eq!(actual.get_fields__i32_().len(), 1);
     }
 
+    #[test]
+    fn test_getters_by_type___with_const_pointers___compiles_fine() {
+        #[derive(GettersByType)]
+        struct Test {
+            ptr: *const i32,
+        }
+        let n = 42;
+        let actual = Test { ptr: &n };
+        assert_eq!(actual.get_fields_ptr_const_i32().len(), 1);
+    }
+
+    #[test]
+    fn test_getters_mut_by_type___with_const_pointers___compiles_fine() {
+        #[derive(GettersMutByType)]
+        struct Test {
+            ptr: *const i32,
+        }
+        let n = 42;
+        let mut actual = Test { ptr: &n };
+        assert_eq!(actual.get_mut_fields_ptr_const_i32().len(), 1);
+    }
+
+    #[test]
+    fn test_getters_by_type___with_mut_pointers___compiles_fine() {
+        #[derive(GettersByType)]
+        struct Test {
+            ptr: *mut i32,
+        }
+        let mut n = 42;
+        let actual = Test { ptr: &mut n };
+        assert_eq!(actual.get_fields_ptr_mut_i32().len(), 1);
+    }
+
+    #[test]
+    fn test_getters_mut_by_type___with_mut_pointers___compiles_fine() {
+        #[derive(GettersMutByType)]
+        struct Test {
+            ptr: *mut i32,
+        }
+        let mut n = 42;
+        let mut actual = Test { ptr: &mut n };
+        assert_eq!(actual.get_mut_fields_ptr_mut_i32().len(), 1);
+    }
+
+    #[test]
+    fn test_getters_by_type___with_boxed_dyn_trait_traits___compiles_fine() {
+        trait Foo {}
+        struct Bar {}
+        impl Foo for Bar {}
+        #[derive(GettersByType)]
+        struct Test {
+            object: Box<dyn Foo>,
+        }
+        let actual = Test { object: Box::new(Bar {}) };
+        assert_eq!(actual.get_fields_box_dyn_foo_().len(), 1);
+    }
+
+    /*
+     * Not yet working
+     *
+    #[test]
+    fn test_getters_by_type___with_paren_trait_objects___compiles_fine() {
+        trait Foo {}
+        struct Bar {}
+        impl Foo for Bar {}
+        #[derive(GettersByType)]
+        struct Test<'a> {
+            object: &'a (dyn Foo + 'a),
+        }
+        let bar = Bar{};
+        let actual = Test{ object: &bar };
+        assert_eq!(actual.get_fields__dyn_foo_().len(), 1);
+    }
+     */
+
 }

@@ -20,8 +20,6 @@
 //! assert_eq!(object.get_fields_i32().iter().fold(0, |acc, x| **x + acc), 42);
 //! ```
 //!
-//! For more documentation and examples, see the [GettersByType derive](derive.GettersByType.html) documentation.
-//!
 //! Example using `GettersMutByType` :
 //!
 //!
@@ -50,7 +48,7 @@
 //! }
 //! ```
 //!
-//! For more documentation and examples, see the [GettersMutByType derive](derive.GettersMutByType.html) documentation.
+//! For more documentation and examples, see each respective documentation section.
 
 extern crate proc_macro;
 
@@ -82,9 +80,10 @@ use std::collections::HashMap;
 /// As you notice, the chars of all the types (`String` in this case) go
 /// to the method signature in lowercase form.
 ///
-/// It works the same with generic, reference and other types, with the following exception:
-/// 1. Characters `<` `>` `(` `)` `[` `]` `,` `;` get converted to `_`.
+/// It works the same with generic, reference and other types, with the following exceptions:
+/// 1. Characters `<` `>` `(` `)` `[` `]` `,` `;` always get converted to `_`.
 /// 2. Return type arrow `->` and reference character `&` get ignored completely.
+/// 3. Pointer types `*const` and `*mut` get converted o `ptr_const_` and `ptr_mut_` respectively.
 ///
 /// Also, reference types and non-reference types will be covered by the same
 /// method, as the methods are always returning references in the first place.
@@ -134,18 +133,50 @@ use std::collections::HashMap;
 ///     f: (i32, i32),
 ///     g: [i32; 2],
 ///     h: &'a [&'a Option<&'a i32>],
+///     i: *const i32,
+///     j: *mut i32,
+///     k: Box<dyn Bar>,
 /// }
-///
-/// let v = vec!();
-/// let o = Foo { a: "", b: Box::new(|_| 0.0), c: &v, d: Ok(0), e: None, f: (0, 0), g: [0, 0], h: v.as_slice() };
+/// trait Bar {}
+/// impl Bar for i32 {}
+/// let vector = vec!();
+/// let number_1 = 1;
+/// let mut number_2 = 2;
+/// let o = Foo {
+///     a: "",
+///     b: Box::new(|_| 0.0),
+///     c: &vector,
+///     d: Ok(0),
+///     e: None,
+///     f: (0, 0),
+///     g: [0, 0],
+///     h: vector.as_slice(),
+///     i: &number_1,
+///     j: &mut number_2,
+///     k: Box::new(0),
+/// };
+/// // from type: &'a str
 /// o.get_fields_str();
+/// // from type: Box<Fn(i32) -> f32>
 /// o.get_fields_box_fn_i32_f32_();
+/// // from type: &'a Vec<&'a Option<&'a i32>>
 /// o.get_fields_vec_option_i32__();
+/// // from type: Result<i32, Result<i32, Result<i32, &'static str>>>
 /// o.get_fields_result_i32_result_i32_result_i32_str___();
+/// // from type: Option<Option<Option<Option<Option<fn(usize)>>>>>
 /// o.get_fields_option_option_option_option_option_fn_usize______();
+/// // from type: (i32, i32)
 /// o.get_fields__i32_i32_();
+/// // from type: [i32; 2]
 /// o.get_fields__i32_2_();
+/// // from type: &'a [&'a Option<&'a i32>]
 /// o.get_fields__option_i32__();
+/// // from type: *const i32
+/// o.get_fields_ptr_const_i32();
+/// // from type: *mut i32
+/// o.get_fields_ptr_mut_i32();
+/// // from type: Box<dyn Bar>
+/// o.get_fields_box_dyn_bar_();
 /// ```
 ///
 /// Method visibility is inherited directly from the struct visibility,
@@ -154,11 +185,9 @@ use std::collections::HashMap;
 ///
 /// There are still some types not implemented. Those are the following:
 ///
-/// * `Ptr`
+/// * `TraitObject` is partially implemented, `Box<dyn Trait>` works, but `&dyn Trait` doesn't.
 /// * `Never`
-/// * `TraitObject`
 /// * `ImplTrait`
-/// * `Paren`
 /// * `Group`
 /// * `Infer`
 /// * `Macro`
@@ -369,7 +398,7 @@ fn make_idents_from_type<'a>(ty: &'a syn::Type) -> Result<Vec<TypePart<'a>>, &'s
 
 fn fill_type_pieces_from_type<'a>(type_pieces: &mut Vec<TypePart<'a>>, ty: &'a syn::Type) -> Result<(), &'static str> {
     match ty {
-        syn::Type::Path(ref path) => fill_type_pieces_from_type_path(type_pieces, path),
+        syn::Type::Path(ref path) => fill_type_pieces_from_type_path(type_pieces, &path.path),
         syn::Type::Reference(ref reference) => fill_type_pieces_from_type(type_pieces, &reference.elem),
         syn::Type::BareFn(ref function) => {
             type_pieces.push(TypePart::Separator("fn"));
@@ -417,11 +446,26 @@ fn fill_type_pieces_from_type<'a>(type_pieces: &mut Vec<TypePart<'a>>, ty: &'a s
             type_pieces.push(TypePart::Separator(")"));
             Ok(())
         }
-        syn::Type::TraitObject(_) => Err("syn::Type::TraitObject is not implemented yet."),
-        syn::Type::ImplTrait(_) => Err("syn::Type::ImplTrait is not implemented yet."),
-        syn::Type::Ptr(_) => Err("syn::Type::Ptr is not implemented yet."),
+        syn::Type::Paren(paren) => {
+            type_pieces.push(TypePart::Separator("("));
+            fill_type_pieces_from_type(type_pieces, &paren.elem)?;
+            type_pieces.push(TypePart::Separator(")"));
+            Ok(())
+        }
+        syn::Type::Ptr(ptr) => {
+            type_pieces.push(TypePart::Separator("ptr_"));
+            if ptr.const_token.is_some() {
+                type_pieces.push(TypePart::Separator("const_"));
+            }
+            if ptr.mutability.is_some() {
+                type_pieces.push(TypePart::Separator("mut_"));
+            }
+            fill_type_pieces_from_type(type_pieces, &ptr.elem)?;
+            Ok(())
+        }
+        syn::Type::ImplTrait(_) => Err("syn::Type::ImplTrait can not be implemented."), // ImplTrait is not valid outside of functions and inherent return types, so can't be implemented.
+        syn::Type::TraitObject(trait_object) => fill_type_pieces_from_trait_object(type_pieces, trait_object),
         syn::Type::Never(_) => Err("syn::Type::Never is not implemented yet."),
-        syn::Type::Paren(_) => Err("syn::Type::Paren is not implemented yet."),
         syn::Type::Group(_) => Err("syn::Type::Group is not implemented yet."),
         syn::Type::Infer(_) => Err("syn::Type::Infer is not implemented yet."),
         syn::Type::Macro(_) => Err("syn::Type::Macro is not implemented yet."),
@@ -429,8 +473,29 @@ fn fill_type_pieces_from_type<'a>(type_pieces: &mut Vec<TypePart<'a>>, ty: &'a s
     }
 }
 
-fn fill_type_pieces_from_type_path<'a>(type_pieces: &mut Vec<TypePart<'a>>, path: &'a syn::TypePath) -> Result<(), &'static str> {
-    for segment in path.path.segments.iter() {
+fn fill_type_pieces_from_trait_object<'a>(type_pieces: &mut Vec<TypePart<'a>>, trait_object: &'a syn::TypeTraitObject) -> Result<(), &'static str> {
+    if trait_object.dyn_token.is_some() {
+        type_pieces.push(TypePart::Separator("dyn_"));
+    }
+    if !trait_object.bounds.is_empty() {
+        for bound in trait_object.bounds.iter() {
+            match bound {
+                syn::TypeParamBound::Trait(trait_bound) => {
+                    fill_type_pieces_from_type_path(type_pieces, &trait_bound.path)?;
+                    type_pieces.push(TypePart::Separator(","));
+                }
+                syn::TypeParamBound::Lifetime(_) => {}
+            };
+        }
+        if let TypePart::Separator(_) = type_pieces[type_pieces.len() - 1] {
+            type_pieces.truncate(type_pieces.len() - 1);
+        }
+    }
+    Ok(())
+}
+
+fn fill_type_pieces_from_type_path<'a>(type_pieces: &mut Vec<TypePart<'a>>, path: &'a syn::Path) -> Result<(), &'static str> {
+    for segment in path.segments.iter() {
         type_pieces.push(TypePart::Ident(&segment.ident));
         fill_type_pieces_from_path_arguments(type_pieces, &segment.arguments)?;
     }
