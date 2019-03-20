@@ -2,6 +2,8 @@
 //! This crate provides [`GettersByType`](derive.GettersByType.html) derive macro for structs, which implements a getter method for each type they contain.
 //!
 //! The generated methods start with the prefix `get_fields_` and end with a transcription of the type they refer.
+//! 
+//! Each method returns an array with references of all the fields having the type that method refer to.
 //!
 //! Example using `GettersByType` :
 //!
@@ -71,6 +73,8 @@ use std::collections::HashMap;
 /// implementing a getter method for each different type contained within the struct.
 ///
 /// The generated methods start with the prefix `get_fields_` and end with a transcription of the type they refer.
+/// 
+/// Each method returns an array with references of all the fields having the type that method refer to.
 ///
 /// Example:
 ///
