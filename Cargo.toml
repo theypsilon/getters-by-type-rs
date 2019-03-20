@@ -1,6 +1,6 @@
 [package]
 name = "getters-by-type"
-version = "0.2.5"
+version = "0.2.6"
 authors = ["José Manuel Barroso Galindo <theypsilon@gmail.com>"]
 license = "MIT"
 edition = "2018"
