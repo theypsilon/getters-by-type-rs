@@ -1,7 +1,5 @@
 //!
 //! This crate provides [`GettersByType`](derive.GettersByType.html) and [`GettersMutByType`](derive.GettersMutByType.html) derive macros for structs, which implement a getter method for each type they contain.
-//! The getter methods return an array containing references to all the fields of the same type.
-//! The `GettersMutByType` derive also adds a mut version for those methods.
 //!
 //! Example using `GettersByType` :
 //!
@@ -20,6 +18,9 @@
 //! assert_eq!(object.get_fields_i32().iter().fold(0, |acc, x| **x + acc), 42);
 //! ```
 //!
+//! As you notice, the getter methods return an array containing references to all the fields of the same type.
+//! The `GettersMutByType` derive also adds a mut version for those methods.
+//! 
 //! Example using `GettersMutByType` :
 //!
 //!
