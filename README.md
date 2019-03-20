@@ -3,7 +3,7 @@
 [![Crates.io](https://img.shields.io/crates/v/getters-by-type.svg)](https://crates.io/crates/getters-by-type)
 [![Docs](https://docs.rs/getters-by-type/badge.svg)](https://docs.rs/getters-by-type)
 
-This crate provides `GettersByType` and `GettersMutByType` derive macros for structs, which implements a getter method for each type they contain. The getter methods return an array containing references to all the fields of the same type. The `GettersMutByType` derive also adds a mut version for those methods.
+This crate provides `GettersByType` and `GettersMutByType` derive macros for structs. They implement a getter method for each type they contain. The getter methods return an array containing references to all the fields of the same type. The `GettersMutByType` derive also adds a mut version for those methods.
 
 Example using `GettersByType` :
 
